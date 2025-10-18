@@ -1,22 +1,25 @@
 package io.github.orenjerry.discordchatmc;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-// Change 'class' to 'record' and move the fields to be parameters
-public record ChatListener(DiscordWebhookService webhookService) implements Listener {
+// We are changing the service this uses to DiscordBotService
+public record ChatListener(DiscordBotService botService) implements Listener {
 
-    // The @EventHandler method stays exactly the same
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerChat(AsyncChatEvent event) {
+    public void onPlayerChat(AsyncChatEvent event) { // Use AsyncPlayerChatEvent
+        // Use the modern .player() method
         Player player = event.getPlayer();
-        String message = event.signedMessage().message(); // Get the message content
 
-        // The 'webhookService' is automatically available as a field
-        webhookService.sendChatMessage(
+        // Use the modern .message() method and serialize it to a plain string
+        String message = event.signedMessage().message();
+
+        // Send to our new bot service
+        botService.sendChatMessage(
                 player.getName(),
                 player.getUniqueId().toString(),
                 message

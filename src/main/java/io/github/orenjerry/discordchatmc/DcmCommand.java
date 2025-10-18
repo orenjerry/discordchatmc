@@ -4,22 +4,21 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter; // <-- IMPORT THIS
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.util.StringUtil; // <-- IMPORT THIS
+import org.bukkit.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable; // <-- IMPORT THIS
+import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList; // <-- IMPORT THIS
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List; // <-- IMPORT THIS
+import java.util.List;
 import java.util.stream.Collectors;
 
-// Add TabCompleter to the implements list
-public record DcmCommand(JavaPlugin plugin, DiscordWebhookService webhookService) implements CommandExecutor, TabCompleter {
+// Change the service to DiscordBotService
+public record DcmCommand(JavaPlugin plugin, DiscordBotService botService) implements CommandExecutor, TabCompleter {
 
-    // --- onCommand method is unchanged ---
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
 
@@ -42,31 +41,21 @@ public record DcmCommand(JavaPlugin plugin, DiscordWebhookService webhookService
         return true;
     }
 
-    // --- THIS IS THE NEW METHOD TO ADD ---
     @Nullable
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        // We only want to provide completions for the first argument
         if (args.length == 1) {
-            // This will hold our suggestions
             List<String> completions = new ArrayList<>();
-
-            // Check permissions before offering suggestions
             if (sender.hasPermission("discordchatmc.list")) {
                 completions.add("list");
             }
             if (sender.hasPermission("discordchatmc.reload")) {
                 completions.add("reload");
             }
-
-            // This helper method filters the list based on what the user is typing
             return StringUtil.copyPartialMatches(args[0], completions, new ArrayList<>());
         }
-
-        // Return an empty list for any other arguments (e.g., /dcm list <arg2>)
         return List.of();
     }
-    // --- END OF NEW METHOD ---
 
 
     private void sendHelpMessage(CommandSender sender) {
@@ -79,16 +68,23 @@ public record DcmCommand(JavaPlugin plugin, DiscordWebhookService webhookService
         }
     }
 
+    // This logic is now simpler
     private void executeReload(CommandSender sender) {
         if (!sender.hasPermission("discordchatmc.reload")) {
             sender.sendMessage("§cYou do not have permission to use this command.");
             return;
         }
-        plugin.reloadConfig();
-        webhookService.loadConfig();
+
+        // The service's loadConfig() method already reloads the plugin config
+        botService.loadConfig();
+
         sender.sendMessage("§aDiscordChatMC configuration reloaded!");
+        if (!botService.isBotReady()) {
+            sender.sendMessage("§eWarning: Bot is not connected. Check console for errors.");
+        }
     }
 
+    // This logic just calls the bot service
     private void executeList(CommandSender sender) {
         if (!sender.hasPermission("discordchatmc.list")) {
             sender.sendMessage("§cYou do not have permission to use this command.");
@@ -108,7 +104,10 @@ public record DcmCommand(JavaPlugin plugin, DiscordWebhookService webhookService
                         .map(Player::getName)
                         .collect(Collectors.joining("\n"));
             }
-            webhookService.sendPlayerList(title, description);
+
+            // Call the bot service
+            botService.sendPlayerList(title, description);
+
             sender.sendMessage("§aSent player list to Discord!");
         });
     }
