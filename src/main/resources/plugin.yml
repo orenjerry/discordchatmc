@@ -9,13 +9,10 @@ website: https://github.com/orenjerry/discordchatmc
 commands:
   dcm:
     description: Main command for DiscordChatMC.
-    usage: /<command> [list|reload]
+    usage: /<command> [reload]
     aliases: [discordchatmc]
 
 permissions:
-  discordchatmc.list:
-    description: Allows sending the player list to Discord.
-    default: true
   discordchatmc.reload:
     description: Allows reloading the plugin's configuration.
     default: op

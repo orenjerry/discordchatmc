@@ -75,12 +75,13 @@ vanish-hide-messages: true
 
 # Whether or not player messages should show their avatar as the profile picture in Discord.
 # The bot will require the "Manage Webhooks" permission in the defined channels in order to use this feature.
-show-avatar: true
+show-avatar: false
 # The URL which should be used to get the avatars of users when "show-avatar" is set to true.
 # Any URL in here should only return a proper JPEG/PNG image and nothing else.
-# To include the UUID of the player in this URL, use "{uuid}".
-# To include the name of the player in this URL, use "{name}".
-avatar-url: "https://mc-heads.net/avatar/{textures}.png"
+# For offline-mode, you can add SkinsRestorer + PlaceholderAPI, and use this link instead "https://mc-heads.net/avatar/%skinsrestorer_texture_id_or_steve%"
+# For online-mode, you can use this link "https://crafatar.com/avatars/{uuid}"
+# Just copy and paste it into avatar-url
+avatar-url: "https://mc-heads.net/avatar/"
 
 # Settings pertaining to the varies commands registered.
 commands:
@@ -170,7 +171,7 @@ messages:
   # - {prefix}: The prefix of the player sending the message
   # - {suffix}: The suffix of the player sending the message
   # ... PlaceholderAPI placeholders are also supported here too!
-  mc-to-discord: "``{message}``"
+  mc-to-discord: "{displayname}: {message}"
   # This is the bot's name which appears in Discord when sending player-specific messages.
   # The following placeholders can be used here:
   # - {username}: The username of the player sending the message

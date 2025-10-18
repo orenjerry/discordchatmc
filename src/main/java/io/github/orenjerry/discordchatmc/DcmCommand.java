@@ -31,9 +31,6 @@ public record DcmCommand(JavaPlugin plugin, DiscordBotService botService) implem
             case "reload":
                 executeReload(sender);
                 break;
-            case "list":
-                executeList(sender);
-                break;
             default:
                 sender.sendMessage("§cUnknown subcommand. Use /dcm for help.");
                 break;
@@ -46,9 +43,6 @@ public record DcmCommand(JavaPlugin plugin, DiscordBotService botService) implem
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
-            if (sender.hasPermission("discordchatmc.list")) {
-                completions.add("list");
-            }
             if (sender.hasPermission("discordchatmc.reload")) {
                 completions.add("reload");
             }
@@ -60,9 +54,6 @@ public record DcmCommand(JavaPlugin plugin, DiscordBotService botService) implem
 
     private void sendHelpMessage(CommandSender sender) {
         sender.sendMessage("§6--- DiscordChatMC Help ---");
-        if (sender.hasPermission("discordchatmc.list")) {
-            sender.sendMessage("§e/dcm list §7- Sends the player list to Discord.");
-        }
         if (sender.hasPermission("discordchatmc.reload")) {
             sender.sendMessage("§e/dcm reload §7- Reloads the plugin's config.");
         }
@@ -82,33 +73,5 @@ public record DcmCommand(JavaPlugin plugin, DiscordBotService botService) implem
         if (!botService.isBotReady()) {
             sender.sendMessage("§eWarning: Bot is not connected. Check console for errors.");
         }
-    }
-
-    // This logic just calls the bot service
-    private void executeList(CommandSender sender) {
-        if (!sender.hasPermission("discordchatmc.list")) {
-            sender.sendMessage("§cYou do not have permission to use this command.");
-            return;
-        }
-
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Collection<? extends Player> players = Bukkit.getOnlinePlayers();
-            int playerCount = players.size();
-            int maxPlayers = Bukkit.getMaxPlayers();
-            String title = "Player List (" + playerCount + "/" + maxPlayers + ")";
-            String description;
-            if (playerCount == 0) {
-                description = "There is nobody online.";
-            } else {
-                description = players.stream()
-                        .map(Player::getName)
-                        .collect(Collectors.joining("\n"));
-            }
-
-            // Call the bot service
-            botService.sendPlayerList(title, description);
-
-            sender.sendMessage("§aSent player list to Discord!");
-        });
     }
 }

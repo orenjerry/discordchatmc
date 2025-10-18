@@ -16,8 +16,7 @@ public record ChatListener(DiscordBotService botService) implements Listener {
         String message = PlainTextComponentSerializer.plainText().serialize(event.message());
 
         botService.sendChatMessage(
-                player.getName(),
-                player.getUniqueId().toString(),
+                player,
                 message
         );
     }

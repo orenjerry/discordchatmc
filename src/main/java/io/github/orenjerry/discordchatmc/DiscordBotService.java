@@ -4,10 +4,16 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import me.clip.placeholderapi.PlaceholderAPI;
+import club.minnced.discord.webhook.WebhookClient;
+import club.minnced.discord.webhook.send.WebhookMessageBuilder;
 
 import java.awt.Color;
 
@@ -19,6 +25,7 @@ public class DiscordBotService {
     // Config values
     private String token;
     private TextChannel primaryChannel;
+    private final java.util.Map<Long, String> webhookUrls = new java.util.concurrent.ConcurrentHashMap<>();
     private String mcToDiscordFormat;
     private String mcToDiscordNameFormat;
     private String avatarUrl;
@@ -27,6 +34,38 @@ public class DiscordBotService {
         this.plugin = plugin;
         loadConfig(); // Load initial config
         login();      // Attempt to log in
+    }
+
+    private TextChannel resolveChannel(String messageTypeKey) {
+        String target = plugin.getConfig().getString("message-types." + messageTypeKey, "primary");
+        if ("none".equalsIgnoreCase(target)) return null; // disabled
+
+        // Try named channel from channels section
+        org.bukkit.configuration.ConfigurationSection cs = plugin.getConfig().getConfigurationSection("channels");
+        if (cs != null && cs.isLong(target)) {
+            long id = cs.getLong(target);
+            return jda.getTextChannelById(id);
+        }
+
+        // Try parsing as raw ID
+        try {
+            long id = Long.parseLong(target);
+            return jda.getTextChannelById(id);
+        } catch (NumberFormatException ignored) {
+            // Fallback to primary
+            long primaryId = plugin.getConfig().getLong("channels.primary", 0L);
+            return primaryId != 0 ? jda.getTextChannelById(primaryId) : null;
+        }
+    }
+
+    private String getOrCreateWebhookUrl(TextChannel channel) {
+        return webhookUrls.computeIfAbsent(channel.getIdLong(), id -> {
+            java.util.List<net.dv8tion.jda.api.entities.Webhook> existing = channel.retrieveWebhooks().complete();
+            net.dv8tion.jda.api.entities.Webhook hook = existing.isEmpty()
+                    ? channel.createWebhook("DiscordChatMC").complete()
+                    : existing.get(0);
+            return hook.getUrl(); // JDA exposes full execution URL
+        });
     }
 
     public void loadConfig() {
@@ -65,48 +104,116 @@ public class DiscordBotService {
 
         } catch (Exception e) {
             plugin.getLogger().severe("Failed to log in to Discord: " + e.getMessage());
-            jda = null; // Ensure JDA is null if login failed
+            jda = null;
         }
     }
 
-    public void shutdown() {
-        if (jda != null) {
-            jda.shutdown();
-            plugin.getLogger().info("Discord bot has been shut down.");
+    private void sendViaWebhook(String messageTypeKey, String username, String avatarUrl, String content) {
+        TextChannel target = resolveChannel(messageTypeKey);
+        if (target == null || content == null || content.isEmpty()) return;
+
+        String url = getOrCreateWebhookUrl(target); // caches per-channel webhook URL
+        try (WebhookClient client = WebhookClient.withUrl(url)) {
+            WebhookMessageBuilder builder = new WebhookMessageBuilder()
+                    .setUsername(username)
+                    .setContent(content);
+            if (avatarUrl != null && !avatarUrl.isBlank()) {
+                builder.setAvatarUrl(avatarUrl);
+            }
+            client.send(builder.build());
         }
     }
 
-    // This method will be for sending chat messages
-    public void sendChatMessage(String playerName, String playerUUID, String message) {
-        if (primaryChannel == null) return; // Don't send if channel is invalid
-
-        // Use the formats from config.yml
-        String discordName = mcToDiscordNameFormat.replace("{displayname}", playerName);
-        String discordMessage = mcToDiscordFormat.replace("{message}", message);
-        String playerAvatar = avatarUrl
-                .replace("{uuid}", playerUUID)
-                .replace("{name}", playerName)
-                .replace("{textures}.png", playerUUID); // Fix for crafatar URL
-
-        // Use an EmbedBuilder for a nice message
-        EmbedBuilder embed = new EmbedBuilder();
-        embed.setAuthor(discordName, null, playerAvatar);
-        embed.setDescription(discordMessage);
-
-        primaryChannel.sendMessageEmbeds(embed.build()).queue();
+    private String resolveAvatarUrl(Player player) {
+        String template = plugin.getConfig().getString("avatar-url", "https://mc-heads.net/avatar/{textures}.png");
+        String url = template;
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            if (template.contains("%")) {
+                url = PlaceholderAPI.setPlaceholders(player, template);
+            } else {
+                String tex = PlaceholderAPI.setPlaceholders(player, "%skinsrestorer_texture_id_or_steve%");
+                url = template.replace("{textures}", tex);
+            }
+        }
+        return url;
     }
 
-    // This method will be for sending the /list command
-    public void sendPlayerList(String title, String description) {
-        if (primaryChannel == null) return; // Don't send if channel is invalid
 
-        EmbedBuilder embed = new EmbedBuilder();
-        embed.setTitle(title);
-        embed.setDescription(description);
-        embed.setColor(new Color(65280)); // Green
-
-        primaryChannel.sendMessageEmbeds(embed.build()).queue();
+    public void sendChatMessage(Player player, String message) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = mcToDiscordFormat.replace("{message}", message);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("chat", username, avatar, content);
     }
+
+    public void sendJoin(Player player, boolean firstJoin) {
+        String key = firstJoin ? "first-join" : "join";
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String formatKey = firstJoin ? "messages.first-join" : "messages.join";
+        String content = plugin.getConfig().getString(formatKey, username + " joined");
+        String avatar  = resolveAvatarUrl(player);
+        sendViaWebhook(key, username, avatar, content);
+    }
+
+    public void sendLeave(Player player) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = plugin.getConfig().getString("messages.leave", username + " left");
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("leave", username, avatar, content);
+    }
+
+    public void sendDeath(Player player, String deathMessage) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = plugin.getConfig().getString("messages.death", "{message}")
+                .replace("{message}", deathMessage);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("death", username, avatar, content);
+    }
+
+    public void sendAdvancement(Player player, String advancementText) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = plugin.getConfig().getString("messages.advancement", "{message}")
+                .replace("{message}", advancementText);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("advancement", username, avatar, content);
+    }
+
+    public void sendAction(Player player, String actionText) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = plugin.getConfig().getString("messages.action", "*{message}*")
+                .replace("{message}", actionText);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("action", username, avatar, content);
+    }
+
+    public void sendKick(Player player, String reason) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String content  = plugin.getConfig().getString("messages.kick", "{name} was kicked: {reason}")
+                .replace("{name}", username)
+                .replace("{reason}", reason == null ? "" : reason);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("kick", username, avatar, content);
+    }
+
+    public void sendMute(Player player, boolean muted) {
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
+        String baseKey  = muted ? "messages.mute-on" : "messages.mute-off";
+        String content  = plugin.getConfig().getString(baseKey, muted ? "{name} was muted" : "{name} was unmuted")
+                .replace("{name}", username);
+        String avatar   = resolveAvatarUrl(player);
+        sendViaWebhook("mute", username, avatar, content);
+    }
+
+    public void sendServerStart() {
+        String content = plugin.getConfig().getString("messages.server-start", "Server started");
+        sendViaWebhook("server-start", "Server", null, content);
+    }
+
+    public void sendServerStop() {
+        String content = plugin.getConfig().getString("messages.server-stop", "Server stopped");
+        sendViaWebhook("server-stop", "Server", null, content);
+    }
+
 
     // Helper method to update the primary channel
     private void updateChannels() {
