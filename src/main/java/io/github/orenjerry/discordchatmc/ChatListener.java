@@ -7,18 +7,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
-// We are changing the service this uses to DiscordBotService
 public record ChatListener(DiscordBotService botService) implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerChat(AsyncChatEvent event) { // Use AsyncPlayerChatEvent
-        // Use the modern .player() method
+    public void onPlayerChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
 
-        // Use the modern .message() method and serialize it to a plain string
-        String message = event.signedMessage().message();
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
 
-        // Send to our new bot service
         botService.sendChatMessage(
                 player.getName(),
                 player.getUniqueId().toString(),
