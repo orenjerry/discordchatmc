@@ -1,0 +1,10 @@
+# ---------------------------------
+# DiscordChatMC Configuration
+# ---------------------------------
+
+# Paste your Discord Webhook URL here.
+# Get this from Discord > Edit Channel > Integrations > Webhooks
+webhook-url: "YOUR_WEBHOOK_URL_HERE"
+
+# The username the "bot" will have in Discord when sending messages
+bot-name: "Minecraft Server"

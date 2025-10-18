@@ -1,0 +1,21 @@
+name: DiscordChatMC
+version: '1.0-SNAPSHOT'
+main: io.github.orenjerry.discordchatmc.DiscordChatMC
+api-version: '1.21'
+authors: [ orenjerry ]
+description: A plugins that forward Minecraft Chat into Discord Channel
+website: https://github.com/orenjerry/discordchatmc
+
+commands:
+  dcm:
+    description: Main command for DiscordChatMC.
+    usage: /<command> [list|reload]
+    aliases: [discordchatmc]
+
+permissions:
+  discordchatmc.list:
+    description: Allows sending the player list to Discord.
+    default: true
+  discordchatmc.reload:
+    description: Allows reloading the plugin's configuration.
+    default: op
