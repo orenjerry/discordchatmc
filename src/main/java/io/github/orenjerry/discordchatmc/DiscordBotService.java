@@ -2,9 +2,7 @@ package io.github.orenjerry.discordchatmc;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Activity;
-import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
@@ -15,12 +13,11 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import club.minnced.discord.webhook.WebhookClient;
 import club.minnced.discord.webhook.send.WebhookMessageBuilder;
 
-import java.awt.Color;
-
 public class DiscordBotService {
 
     private final JavaPlugin plugin;
     private JDA jda;
+    private long startTime;
 
     // Config values
     private String token;
@@ -32,27 +29,25 @@ public class DiscordBotService {
 
     public DiscordBotService(JavaPlugin plugin) {
         this.plugin = plugin;
-        loadConfig(); // Load initial config
-        login();      // Attempt to log in
+        this.startTime = System.currentTimeMillis();
+        loadConfig();
+        login();
     }
 
     private TextChannel resolveChannel(String messageTypeKey) {
         String target = plugin.getConfig().getString("message-types." + messageTypeKey, "primary");
-        if ("none".equalsIgnoreCase(target)) return null; // disabled
+        if ("none".equalsIgnoreCase(target)) return null;
 
-        // Try named channel from channels section
         org.bukkit.configuration.ConfigurationSection cs = plugin.getConfig().getConfigurationSection("channels");
         if (cs != null && cs.isLong(target)) {
             long id = cs.getLong(target);
             return jda.getTextChannelById(id);
         }
 
-        // Try parsing as raw ID
         try {
             long id = Long.parseLong(target);
             return jda.getTextChannelById(id);
         } catch (NumberFormatException ignored) {
-            // Fallback to primary
             long primaryId = plugin.getConfig().getLong("channels.primary", 0L);
             return primaryId != 0 ? jda.getTextChannelById(primaryId) : null;
         }
@@ -62,23 +57,20 @@ public class DiscordBotService {
         return webhookUrls.computeIfAbsent(channel.getIdLong(), id -> {
             java.util.List<net.dv8tion.jda.api.entities.Webhook> existing = channel.retrieveWebhooks().complete();
             net.dv8tion.jda.api.entities.Webhook hook = existing.isEmpty()
-                    ? channel.createWebhook("DiscordChatMC").complete()
+                    ? channel.createWebhook("DCMC").complete()
                     : existing.get(0);
-            return hook.getUrl(); // JDA exposes full execution URL
+            return hook.getUrl();
         });
     }
 
     public void loadConfig() {
-        // Reload config from disk
         plugin.reloadConfig();
 
-        // Load values from config.yml
         token = plugin.getConfig().getString("bot-token", "");
         mcToDiscordFormat = plugin.getConfig().getString("messages.mc-to-discord", "{message}");
         mcToDiscordNameFormat = plugin.getConfig().getString("messages.mc-to-discord-name-format", "{displayname}");
         avatarUrl = plugin.getConfig().getString("avatar-url", "https://crafatar.com/avatars/{uuid}?overlay");
 
-        // If JDA is already running, update channels and presence
         if (jda != null) {
             updateChannels();
             updatePresence();
@@ -95,7 +87,7 @@ public class DiscordBotService {
             jda = JDABuilder.createDefault(token)
                     .disableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
                     .enableIntents(GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT)
-                    .build().awaitReady(); // Wait for the bot to log in
+                    .build().awaitReady();
 
             updateChannels();
             updatePresence();
@@ -108,11 +100,18 @@ public class DiscordBotService {
         }
     }
 
+    public void shutdown() {
+        if (jda != null) {
+            jda.shutdownNow();
+            plugin.getLogger().info("Discord bot has been shut down.");
+        }
+    }
+
     private void sendViaWebhook(String messageTypeKey, String username, String avatarUrl, String content) {
         TextChannel target = resolveChannel(messageTypeKey);
         if (target == null || content == null || content.isEmpty()) return;
 
-        String url = getOrCreateWebhookUrl(target); // caches per-channel webhook URL
+        String url = getOrCreateWebhookUrl(target);
         try (WebhookClient client = WebhookClient.withUrl(url)) {
             WebhookMessageBuilder builder = new WebhookMessageBuilder()
                     .setUsername(username)
@@ -138,84 +137,104 @@ public class DiscordBotService {
         return url;
     }
 
+    private String applyPlaceholders(Player player, String message) {
+        String result = message
+                .replace("{username}", player.getName())
+                .replace("{displayname}", player.getDisplayName())
+                .replace("{world}", player.getWorld().getName())
+                .replace("{online}", String.valueOf(Bukkit.getOnlinePlayers().size()))
+                .replace("{unique}", String.valueOf(Bukkit.getOfflinePlayers().length));
+
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            result = PlaceholderAPI.setPlaceholders(player, result);
+        }
+        return result;
+    }
 
     public void sendChatMessage(Player player, String message) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = mcToDiscordFormat.replace("{message}", message);
-        String avatar   = resolveAvatarUrl(player);
+        String username = mcToDiscordNameFormat.replace("{displayname}", player.getDisplayName())
+                .replace("{username}", player.getName());
+        String content = mcToDiscordFormat.replace("{message}", message)
+                .replace("{displayname}", player.getDisplayName())
+                .replace("{username}", player.getName());
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("chat", username, avatar, content);
     }
 
     public void sendJoin(Player player, boolean firstJoin) {
         String key = firstJoin ? "first-join" : "join";
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String formatKey = firstJoin ? "messages.first-join" : "messages.join";
-        String content = plugin.getConfig().getString(formatKey, username + " joined");
-        String avatar  = resolveAvatarUrl(player);
+        String formatKey = "messages." + key;
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString(formatKey,
+                firstJoin ? ":arrow_right: :first_place: {displayname} has joined the server for the first time!"
+                        : ":arrow_right: {displayname} has joined!");
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook(key, username, avatar, content);
     }
 
     public void sendLeave(Player player) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = plugin.getConfig().getString("messages.leave", username + " left");
-        String avatar   = resolveAvatarUrl(player);
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString("messages.quit", ":arrow_left: {displayname} has left!");
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("leave", username, avatar, content);
     }
 
     public void sendDeath(Player player, String deathMessage) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = plugin.getConfig().getString("messages.death", "{message}")
-                .replace("{message}", deathMessage);
-        String avatar   = resolveAvatarUrl(player);
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString("messages.death", ":skull: {deathmessage}")
+                .replace("{deathmessage}", deathMessage);
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("death", username, avatar, content);
     }
 
-    public void sendAdvancement(Player player, String advancementText) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = plugin.getConfig().getString("messages.advancement", "{message}")
-                .replace("{message}", advancementText);
-        String avatar   = resolveAvatarUrl(player);
+    public void sendAdvancement(Player player, String advancementName) {
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString("messages.advancement",
+                        ":medal: {displayname} has completed the advancement **{advancement}**!")
+                .replace("{advancement}", advancementName);
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("advancement", username, avatar, content);
     }
 
     public void sendAction(Player player, String actionText) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = plugin.getConfig().getString("messages.action", "*{message}*")
-                .replace("{message}", actionText);
-        String avatar   = resolveAvatarUrl(player);
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString("messages.action",
+                        ":person_biking: {displayname} *{action}*")
+                .replace("{action}", actionText);
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("action", username, avatar, content);
     }
 
     public void sendKick(Player player, String reason) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String content  = plugin.getConfig().getString("messages.kick", "{name} was kicked: {reason}")
-                .replace("{name}", username)
-                .replace("{reason}", reason == null ? "" : reason);
-        String avatar   = resolveAvatarUrl(player);
+        String username = player.getDisplayName();
+        String content = plugin.getConfig().getString("messages.kick",
+                        "{displayname} was kicked with reason: {reason}")
+                .replace("{reason}", reason == null ? "No reason" : reason);
+        content = applyPlaceholders(player, content);
+        String avatar = resolveAvatarUrl(player);
         sendViaWebhook("kick", username, avatar, content);
     }
 
-    public void sendMute(Player player, boolean muted) {
-        String username = mcToDiscordNameFormat.replace("{displayname}", player.getName());
-        String baseKey  = muted ? "messages.mute-on" : "messages.mute-off";
-        String content  = plugin.getConfig().getString(baseKey, muted ? "{name} was muted" : "{name} was unmuted")
-                .replace("{name}", username);
-        String avatar   = resolveAvatarUrl(player);
-        sendViaWebhook("mute", username, avatar, content);
-    }
-
     public void sendServerStart() {
-        String content = plugin.getConfig().getString("messages.server-start", "Server started");
+        long seconds = (System.currentTimeMillis() - startTime) / 1000;
+        String content = plugin.getConfig().getString("messages.server-start",
+                        ":white_check_mark: The server has started in {starttimeseconds} seconds!")
+                .replace("{starttimeseconds}", String.valueOf(seconds));
         sendViaWebhook("server-start", "Server", null, content);
     }
 
     public void sendServerStop() {
-        String content = plugin.getConfig().getString("messages.server-stop", "Server stopped");
+        String content = plugin.getConfig().getString("messages.server-stop",
+                ":octagonal_sign: The server has stopped!");
         sendViaWebhook("server-stop", "Server", null, content);
     }
 
-
-    // Helper method to update the primary channel
     private void updateChannels() {
         long primaryId = plugin.getConfig().getLong("channels.primary");
         if (primaryId == 0) {
@@ -234,10 +253,8 @@ public class DiscordBotService {
         }
     }
 
-    // Helper method to set the bot's "Playing" status
     private void updatePresence() {
         String activityMessage = plugin.getConfig().getString("presence.message", "Minecraft");
-        // You can make this more advanced later to support "watching", "listening", etc.
         jda.getPresence().setActivity(Activity.playing(activityMessage));
     }
 

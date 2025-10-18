@@ -13,6 +13,7 @@ public final class DiscordChatMC extends JavaPlugin {
         saveDefaultConfig();
         this.botService = new DiscordBotService(this);
         getServer().getPluginManager().registerEvents(new ChatListener(this.botService), this);
+        getServer().getPluginManager().registerEvents(new PlayerEventListener(this.botService), this);
         DcmCommand dcmCommand = new DcmCommand(this, this.botService);
         this.getCommand("dcm").setExecutor(dcmCommand);
         this.getCommand("dcm").setTabCompleter(dcmCommand);
@@ -25,6 +26,7 @@ public final class DiscordChatMC extends JavaPlugin {
             getLogger().warning("for a valid 'bot-token' and 'channels.primary'");
             getLogger().warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         }
+        botService.sendServerStart();
     }
 
     @Override
@@ -36,6 +38,7 @@ public final class DiscordChatMC extends JavaPlugin {
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
+            botService.sendServerStop();
             getLogger().info("DiscordChatMC has been disabled!");
         }
     }
