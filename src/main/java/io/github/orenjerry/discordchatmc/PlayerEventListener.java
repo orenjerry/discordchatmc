@@ -38,10 +38,24 @@ public record PlayerEventListener(DiscordBotService bot) implements Listener {
     public void onAdvancement(PlayerAdvancementDoneEvent event) {
         var advancement = event.getAdvancement();
         var display = advancement.getDisplay();
+
+        // Skip if no display (recipes/hidden)
         if (display == null) return;
 
-        String advName = PlainTextComponentSerializer.plainText()
+        // Only announce "task", "challenge", or "goal" type advancements
+        // This filters out parent/generic advancements like "Adventure" and "Monster Hunter"
+        var frameType = display.frame();
+        if (frameType != io.papermc.paper.advancement.AdvancementDisplay.Frame.TASK &&
+                frameType != io.papermc.paper.advancement.AdvancementDisplay.Frame.CHALLENGE &&
+                frameType != io.papermc.paper.advancement.AdvancementDisplay.Frame.GOAL) {
+            return;
+        }
+
+        if (!display.doesAnnounceToChat()) return;
+
+        String advName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
                 .serialize(display.title());
         bot.sendAdvancement(event.getPlayer(), advName);
     }
+
 }

@@ -2,6 +2,10 @@
 # DiscordChatMC Configuration v1.0
 # ---------------------------------
 
+# IMPORTANT!
+# You need to restart the server when changing bot-token, guild
+# /dcm reload only reload the config like channel, and message
+
 # The token for your bot from the Discord Developers site.
 bot-token: ""
 # The ID of your server.
@@ -20,12 +24,6 @@ discord-url: ""
 channels:
   primary: 0
   staff: 0
-
-chat:
-  # Discord normal max length
-  discord-max-length: 2000
-  # Add a prefix before the name, only on the discord message (e.g [PRX] varen)
-  name-prefix: ""
 
 # Configure which Discord channels different messages will be sent to.
 # You can either use the names of the channels listed above or just the id of a channel.
@@ -73,64 +71,15 @@ vanish-fake-join-leave: true
 # This affects join, leave, death, and afk message types by default.
 vanish-hide-messages: true
 
-# Whether or not player messages should show their avatar as the profile picture in Discord.
-# The bot will require the "Manage Webhooks" permission in the defined channels in order to use this feature.
-show-avatar: false
 # The URL which should be used to get the avatars of users when "show-avatar" is set to true.
 # Any URL in here should only return a proper JPEG/PNG image and nothing else.
 # For offline-mode, you can add SkinsRestorer + PlaceholderAPI, and use this link instead "https://mc-heads.net/avatar/%skinsrestorer_texture_id_or_steve%"
-# For online-mode, you can use this link "https://crafatar.com/avatars/{uuid}"
+# Without adding a parameters such {uuid} or {name}
+# For online-mode, you can use this link "https://crafatar.com/avatars/{uuid}", or your server using SkinsRestorer
 # Just copy and paste it into avatar-url
-avatar-url: "https://mc-heads.net/avatar/"
-
-# Settings pertaining to the varies commands registered.
-commands:
-  # The execute command allows for Discord users to execute MC commands from Discord.
-  # MC commands executed by this will be ran as the console and you should therefore be careful to who you grant this to.
-  execute:
-    # Set to false if you do not want this command to show up on the Discord command selector.
-    # You must restart your server after changing this.
-    enabled: true
-    # Whether or not the command should be hidden from other people in the channel.
-    # If set to false, members of the Discord guild will be able to see the exact command you executed as well as its response.
-    hide-command: true
-    # List of user IDs or role names/IDs allowed to use this command (or * to allow anyone to access it).
-    allowed-roles:
-      - "Admins"
-      - "123456789012345678"
-  # The msg command allows for Discord users to message MC players from Discord.
-  msg:
-    # Set to false if you do not want this command to show up on the Discord command selector.
-    # You must restart your server after changing this.
-    enabled: true
-    # Whether or not the command should be hidden from other people in the channel.
-    # If set to false, members of the Discord guild will be able to see the target and content of your message.
-    hide-command: true
-    # List of user IDs or role names/IDs allowed to use this command (or '*' to allow anyone to access it).
-    allowed-roles:
-      - "*"
-    # List of user IDs or role names/IDs who can message vanished players or players who disable messages. If '*' is
-    # used, all people on Discord would be allowed to message vanished players (and therefore expose they are actually online)
-    # and message players who disable messages.
-    admin-roles:
-      - "Admins"
-      - "123456789012345678"
-  # The list command allows Discord users to see a list of players currently online on Minecraft.
-  list:
-    # Set to false if you do not want this command to show up on the Discord command selector.
-    # You must restart your server after changing this.
-    enabled: false
-    # Whether or not the command should be hidden from other people in the channel.
-    # If set to false, members of the Discord guild will be able to see when you use this command as well as its response.
-    hide-command: true
-    # List of user IDs or role names/IDs allowed to use this command (or '*' to allow anyone to access it).
-    allowed-roles:
-      - "*"
-    # List of user IDs or role names/IDs who can see vanished players in the player list. If '*' is used, all people
-    # on Discord would be allowed to see vanished players (and therefore expose they are actually online).
-    admin-roles:
-      - "Admins"
-      - "123456789012345678"
+# To include the UUID of the player in this URL, use "{uuid}".
+# To include the name of the player in this URL, use "{name}".
+avatar-url: "https://mc-heads.net/avatar/{uuid}"
 
 # The presence of the bot, including its status, activity and status message.
 presence:

@@ -100,13 +100,6 @@ public class DiscordBotService {
         }
     }
 
-    public void shutdown() {
-        if (jda != null) {
-            jda.shutdownNow();
-            plugin.getLogger().info("Discord bot has been shut down.");
-        }
-    }
-
     private void sendViaWebhook(String messageTypeKey, String username, String avatarUrl, String content) {
         TextChannel target = resolveChannel(messageTypeKey);
         if (target == null || content == null || content.isEmpty()) return;
@@ -124,15 +117,13 @@ public class DiscordBotService {
     }
 
     private String resolveAvatarUrl(Player player) {
-        String template = plugin.getConfig().getString("avatar-url", "https://mc-heads.net/avatar/{textures}.png");
-        String url = template;
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            if (template.contains("%")) {
-                url = PlaceholderAPI.setPlaceholders(player, template);
-            } else {
-                String tex = PlaceholderAPI.setPlaceholders(player, "%skinsrestorer_texture_id_or_steve%");
-                url = template.replace("{textures}", tex);
-            }
+        String template = plugin.getConfig()
+                .getString("avatar-url", "https://crafatar.com/avatars/{uuid}");
+        String url = template
+                .replace("{uuid}", player.getUniqueId().toString())
+                .replace("{name}", player.getName());
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && url.contains("%")) {
+            url = PlaceholderAPI.setPlaceholders(player, url);
         }
         return url;
     }
